@@ -1,0 +1,1826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embedding Similarity Calibrator - find out what your retrieval threshold is measured against</title>
+<meta name="description" content="Paste your own embedding vectors and get the empirical cosine distribution of unrelated pairs, drawn against the exact closed-form null for random unit vectors in the same dimension.">
+<link rel="canonical" href="https://0xelitesystem.github.io/embedding-similarity-calibrator/">
+<meta property="og:title" content="Embedding Similarity Calibrator">
+<meta property="og:description" content="Paste your own embedding vectors and get the empirical cosine distribution of unrelated pairs, drawn against the exact closed-form null for random unit vectors in the same dimension.">
+<meta property="og:url" content="https://0xelitesystem.github.io/embedding-similarity-calibrator/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%233b3fa8'/><text x='50' y='70' font-size='54' text-anchor='middle' fill='%23f2f0ff' font-family='monospace'>.8</text></svg>">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Embedding Similarity Calibrator","applicationCategory":"DeveloperApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://0xelitesystem.github.io/embedding-similarity-calibrator/","author":{"@type":"Person","name":"0xelitesystem","url":"https://elitesystem.ai"}}
+</script>
+<script>
+(function () {
+  var t = 'dark';
+  try {
+    var v = localStorage.getItem('esc-theme');
+    if (v === 'light' || v === 'dark') { t = v; }
+  } catch (e) { t = 'dark'; }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<style>
+:root {
+  --bg: #0c0e1a;
+  --surface: #161a2e;
+  --surface-2: #111427;
+  --ink: #e9e9f4;
+  --ink-soft: #b4b6cf;
+  --ink-faint: #868aa8;
+  --rule: #2b3050;
+  --rule-soft: #1e2340;
+  --key: #7d84ff;
+  --key-deep: #9aa0ff;
+  --amber: #d9a441;
+  --ok: #58c98a;
+  --warn: #d9a441;
+  --err: #ee8080;
+  --code-bg: #0a0c17;
+  --accent-ink: #0a0c17;
+}
+:root[data-theme="light"] {
+  --bg: #faf9f5;
+  --surface: #ffffff;
+  --surface-2: #f2f1ea;
+  --ink: #16182b;
+  --ink-soft: #3b3f5c;
+  --ink-faint: #63678a;
+  --rule: #d2d1c8;
+  --rule-soft: #e6e5dd;
+  --key: #3b3fa8;
+  --key-deep: #2a2d80;
+  --amber: #8a5f10;
+  --ok: #1c6b41;
+  --warn: #8a5f10;
+  --err: #b1332f;
+  --code-bg: #f2f1ea;
+  --accent-ink: #ffffff;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.62 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--rule); background: var(--surface-2);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { font-weight: 700; font-size: 0.92rem; letter-spacing: 0.01em; }
+.wrap { max-width: 940px; margin: 0 auto; padding: 0 16px 56px; }
+h1 { font-size: 1.85rem; line-height: 1.22; margin: 26px 0 6px; letter-spacing: -0.015em; }
+h2 { font-size: 1.22rem; margin: 34px 0 10px; padding-top: 12px; border-top: 1px solid var(--rule-soft); }
+h3 { font-size: 1.02rem; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--key-deep); }
+a:hover { color: var(--key); }
+.lede { color: var(--ink-soft); font-size: 1.03rem; }
+.fine { font-size: 0.85rem; color: var(--ink-faint); }
+label { display: block; font-size: 0.85rem; color: var(--ink-faint); margin: 12px 0 4px; }
+textarea, input[type="text"] {
+  width: 100%; background: var(--code-bg); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem; line-height: 1.5;
+}
+textarea#src { min-height: 150px; resize: vertical; }
+textarea#qsrc { min-height: 60px; resize: vertical; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.row > div { flex: 1 1 190px; min-width: 0; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+button {
+  background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
+  border-radius: 7px; padding: 8px 13px; font-size: 0.87rem; cursor: pointer;
+  font-family: inherit;
+}
+button:hover { border-color: var(--key); }
+button.primary { background: var(--key); border-color: var(--key); color: var(--accent-ink); font-weight: 650; }
+button.primary:hover { background: var(--key-deep); border-color: var(--key-deep); }
+.topbar button { padding: 5px 11px; font-size: 0.8rem; }
+textarea:focus, button:focus, input:focus { outline: 2px solid var(--key); outline-offset: 1px; }
+.hero { border: 1px solid var(--rule); border-left: 4px solid var(--amber); border-radius: 9px; background: var(--surface); padding: 16px 18px; margin: 20px 0 8px; }
+.hero h2 { border: 0; margin: 4px 0 8px; padding: 0; font-size: 1.2rem; }
+.kicker { text-transform: uppercase; letter-spacing: 0.09em; font-size: 0.71rem; font-weight: 700; color: var(--amber); margin: 0; }
+.verdict { font-size: 1.02rem; margin: 10px 0; }
+.verdict b { color: var(--key-deep); }
+.panel { border: 1px solid var(--rule); border-radius: 9px; background: var(--surface); padding: 14px 16px; margin: 14px 0; }
+.panel.block { border-left: 4px solid var(--err); }
+.panel.assume { border-left: 4px solid var(--amber); background: var(--surface-2); }
+.panel.calm { border-left: 4px solid var(--key); }
+.panel.good { border-left: 4px solid var(--ok); }
+.panel > h3:first-child { margin-top: 0; }
+.tw { overflow-x: auto; margin: 10px 0; border: 1px solid var(--rule-soft); border-radius: 7px; }
+table.data { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 0.82rem; }
+table.data.narrow { min-width: 380px; }
+table.data th, table.data td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+table.data th { background: var(--surface-2); color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+table.data tr:last-child td { border-bottom: 0; }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+.tag { display: inline-block; font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-soft); white-space: nowrap; }
+.tag.bad { color: var(--err); border-color: var(--err); }
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.ok { color: var(--ok); border-color: var(--ok); }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.stat { flex: 1 1 155px; min-width: 0; border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); }
+.stat .n { font-size: 1.42rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; word-break: break-word; }
+.stat .l { font-size: 0.77rem; color: var(--ink-faint); }
+.stat.hot .n { color: var(--amber); }
+.stat.key .n { color: var(--key-deep); }
+.msg { border: 1px solid var(--rule); border-left: 4px solid var(--warn); border-radius: 7px; padding: 10px 12px; background: var(--surface-2); margin: 12px 0; }
+.msg.err { border-left-color: var(--err); }
+.msg.ok { border-left-color: var(--ok); }
+pre { background: var(--code-bg); border: 1px solid var(--rule-soft); border-radius: 7px; padding: 12px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin: 10px 0; }
+code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px; font-size: 0.88em; word-break: break-word; }
+ul, ol { padding-left: 20px; }
+li { margin: 6px 0; }
+dl.ladder dt { font-weight: 650; margin-top: 12px; }
+dl.ladder dd { margin: 2px 0 0 0; color: var(--ink-soft); }
+.bars { margin: 10px 0; }
+.bar { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 0.78rem; }
+.bar .lab { width: 74px; flex: none; text-align: right; color: var(--ink-faint); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.bar .track { flex: 1 1 auto; height: 11px; background: var(--surface-2); border: 1px solid var(--rule-soft); border-radius: 3px; overflow: hidden; min-width: 0; }
+.bar .fill { height: 100%; background: var(--key); }
+.bar .fill.alt { background: var(--amber); }
+.bar .cnt { width: 62px; flex: none; color: var(--ink-faint); font-family: ui-monospace, Menlo, Consolas, monospace; }
+footer { border-top: 1px solid var(--rule); margin-top: 44px; padding-top: 16px; color: var(--ink-faint); font-size: 0.88rem; }
+footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 8px; }
+.muted { color: var(--ink-faint); }
+@media (max-width: 480px) {
+  .wrap { padding: 0 12px 48px; }
+  h1 { font-size: 1.42rem; }
+  .hero, .panel { padding: 12px 13px; }
+  .stat .n { font-size: 1.2rem; }
+  .bar .lab { width: 60px; }
+  .bar .cnt { width: 54px; }
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">Embedding Similarity Calibrator</span>
+  <button id="themeBtn" type="button" aria-label="Switch color theme">Light theme</button>
+</div>
+
+<div class="wrap">
+
+<h1>Embedding Similarity Calibrator</h1>
+<p class="lede">Your retrieval threshold is 0.8. Against what? Paste your own vectors. This page samples unrelated pairs, computes the empirical cosine distribution, and draws it against the exact closed-form null for random unit vectors in the same dimension. Everything runs in this browser.</p>
+
+<section class="hero">
+  <p class="kicker">Headline finding</p>
+  <h2>The theoretical null and your corpus disagree about the same threshold by a factor of four</h2>
+  <div id="heroOut"></div>
+</section>
+
+<h2>Calibrate your own vectors</h2>
+<p class="fine">Nothing leaves the browser. No network call is made by this page at any point.</p>
+
+<label for="src">Vectors, one per line, or a JSON array of arrays, or an embeddings API response body</label>
+<textarea id="src" spellcheck="false" placeholder="0.0123, -0.0456, 0.0789, ...
+0.0231, 0.0512, -0.0067, ...
+
+or paste a whole response body: {&quot;data&quot;: [{&quot;embedding&quot;: [ ... ]}, ... ]}"></textarea>
+
+<div class="row">
+  <div>
+    <label for="qsrc">Query vector (optional, one vector)</label>
+    <textarea id="qsrc" spellcheck="false" placeholder="0.0311, -0.0044, ..."></textarea>
+  </div>
+  <div style="flex: 0 1 200px;">
+    <label for="thr">Your retrieval threshold</label>
+    <input id="thr" type="text" inputmode="decimal" value="0.8" spellcheck="false">
+  </div>
+</div>
+
+<div class="btns">
+  <button id="runBtn" class="primary" type="button">Calibrate</button>
+  <button id="ex1Btn" type="button">Load example: anisotropic, d=1536</button>
+  <button id="ex2Btn" type="button">Load example: low anisotropy, d=768</button>
+  <button id="ex3Btn" type="button">Load example: broken index</button>
+  <button id="ex4Btn" type="button">Load example: distance-sorted list</button>
+  <button id="clearBtn" type="button">Clear</button>
+  <button id="copyTxtBtn" type="button">Copy report</button>
+  <button id="copyJsonBtn" type="button">Copy JSON</button>
+</div>
+<p id="status" class="fine" role="status" aria-live="polite"></p>
+<div id="out"></div>
+
+<h2>Input formats</h2>
+<ul>
+  <li><strong>One vector per line.</strong> Numbers separated by commas, spaces, tabs or semicolons. Square brackets are stripped. A leading non-numeric token is treated as a label and shown in duplicate findings.</li>
+  <li><strong>A single JSON document.</strong> An array of arrays, or an object. The parser walks the object and collects every array whose elements are all finite numbers, so an embeddings API response body pastes in as-is: any <code>embedding</code>, <code>values</code> or <code>vector</code> field is picked up wherever it sits.</li>
+  <li><strong>JSONL.</strong> One JSON value per line, array or object, walked the same way.</li>
+  <li><strong>Comments.</strong> A line starting with <code>#</code> is ignored. One directive is understood: <code>#example anisotropic-1536</code>, <code>#example low-anisotropy-768</code>, <code>#example broken-index</code> or <code>#example distance-sorted</code>. Each generates a labelled synthetic corpus in this page from a fixed seed, so every reader gets the same numbers. The example buttons write that directive into the box.</li>
+</ul>
+<p class="fine">Refused with a message rather than a silent failure: empty input, whitespace only, a line that is not a vector, more than 5,000 vectors, a dimension above 8,192, more than 6,000,000 total components, and more than 24,000,000 characters of text.</p>
+
+<h2>The preflight gate</h2>
+<p>Four conditions block calibration. They are not warnings printed next to a result, because a calibration computed on top of any of them is a number with no meaning attached.</p>
+<dl class="ladder">
+  <dt>A dimension split</dt>
+  <dd>Two or more vector lengths in one input. Half a migration. The page prints the histogram of lengths with counts and refuses to pool them.</dd>
+  <dt>Zero vectors</dt>
+  <dd>An all-zero vector, usually an empty chunk that made it through ingest. Cosine against it is zero divided by zero. Nothing downstream of that is a number.</dd>
+  <dt>Norms outside tolerance</dt>
+  <dd>Cosine is scale invariant, so an unnormalized vector does not corrupt cosine. A dot-product index is not scale invariant: there, norm is popularity, and the longest vector wins queries it does not match. The check is tolerance based, not an equality test, for the reason in the next paragraph.</dd>
+  <dt>A ranked list sorted as if a distance were a similarity</dt>
+  <dd>Only checked when you supply a query vector. The page computes the Spearman rank correlation between the row order you pasted and cosine to the query. A correctly ordered result list runs best match first, so cosine falls as you go down the rows and the correlation is close to -1. A correlation close to +1 is the inverted case: the rows climb in cosine, which is what you get when a distance is sorted descending as if a larger value meant a better match. The row being called the best match is the worst one, and every top-k in the system is upside down.</dd>
+</dl>
+<p><strong>Why the norm check has a tolerance.</strong> A unit vector stored in float32 does not have norm 1. The rounding is real and the accumulation is real, and a check written as <code>norm == 1</code> reports every vector in a healthy index as broken. This page measures both effects live in your browser rather than asserting a constant, and prints what it found in the hygiene panel. The tolerance used is 1e-3 on the absolute deviation, which passes float32 and float16 storage and still catches a vector that was never normalized.</p>
+<p><strong>Why duplicates are reported in two classes.</strong> Bit-identical vectors and vectors at cosine 1 minus 1e-6 are different bugs. Bit-identical means the same text was embedded twice: a re-run that did not clear the collection, an ingest loop that double-appends, a retry without an idempotency key. Cosine near 1 but not identical means two different strings landed in nearly the same place: boilerplate headers, a shared footer, a template with one field changed. One is a pipeline bug, the other is a chunking decision. Merging them into one count hides whichever is smaller.</p>
+
+<h2>Anisotropy, and why the reranking panel is not the headline</h2>
+<p>Subtracting the corpus mean vector before scoring is the best known trick in this area, and it is the one thing on this page that is allowed to do nothing.</p>
+<p>The size of the effect is set by one measurable quantity: the norm of the mean of your unit-normalized vectors. Write each vector as <code>v = mu + r</code>, where <code>mu</code> is the corpus mean and <code>r</code> is what is left. Cosine between two vectors carries a term in <code>|mu|^2</code> that is shared by every pair in the corpus. That shared term is what mean removal deletes. When <code>|mu|</code> is small the term is small, the deletion changes almost nothing, and a demo built around it produces a table where nothing moved.</p>
+<p>So the mean-vector norm is reported as the primary anisotropy number, the reranking panel sits behind it, and the expected outcome is printed before the rerank runs: <strong>a mean-vector norm at or above 0.5 should move rankings, and below 0.5 it should not.</strong> Stating it first is the point. A rerank that changes nothing on a low-anisotropy embedder is a correct measurement of that embedder, and without the expectation printed in advance it reads as a broken feature.</p>
+<p>The rerank is measured over held-out queries drawn from your own corpus, up to 25 of them, and the verdict rule is fixed before the run: rankings <em>moved</em> when the mean Kendall tau between the before and after orderings falls below 0.90, which is more than one document pair in twenty swapping order. Mean top-10 overlap is reported next to it because that is the number a retrieval system actually pays for, and the two disagree in an interesting way: a low-anisotropy corpus can still shuffle the bottom of a top-10 list, because near-ties at rank 9 and 10 flip under any perturbation at all.</p>
+
+<h2>The assumption this rests on</h2>
+<p>Every unrelated-pair number on this page rests on one assumption, and it is an assumption rather than a fact: <strong>a randomly drawn pair of your vectors is unrelated.</strong></p>
+<p>In a broad corpus that is close enough to true to be useful. In a topically narrow corpus it is wrong in a specific and dangerous direction. If your index is one product's documentation, one legal domain, or one company's support history, then two random chunks really are related, their cosine really is high, and the distribution this page calls "unrelated pairs" is shifted right. Every threshold derived from it comes out too high, and it comes out too high with a tight confidence interval attached, which is the worst way to be wrong. The page cannot detect this for you, because detecting it requires labels it does not have.</p>
+
+<h2>What this refuses to compute</h2>
+<ul>
+  <li><strong>An optimal threshold.</strong> That requires labelled related pairs, and this page never sees one. It computes the false-positive side only: at cutoff t, this is the fraction of unrelated pairs that clear it. The recall you give up at that cutoff is not knowable from these vectors.</li>
+  <li><strong>A verdict about your production system.</strong> Every number here is a property of the vectors in the box and the threshold you typed.</li>
+  <li><strong>A cutoff from too few pairs.</strong> Below 50 vectors, calibration is refused outright rather than printed with a caveat. Individual cutoffs are refused one by one under a single rule: a cutoff is printed only when at least 10 sampled pairs sit above it. That refuses a 0.1 percent cutoff below 10,000 pairs, which is every run at the 50-vector floor, because 1,225 pairs put the 99.9th percentile at the largest sample and the second largest and nothing else. The row says what it needed and what it got.</li>
+  <li><strong>A model comparison.</strong> There is no model registry here and no network call. It measures the vectors you paste, whichever model made them.</li>
+  <li><strong>A fix.</strong> When the gate blocks, it names the condition and the count. It does not rewrite your index.</li>
+</ul>
+<p class="fine">One softening, stated plainly: when the only blocking condition is norms outside tolerance, the page offers to normalize copies in memory and re-run. The result then carries a banner saying so for as long as it is on screen, and the vectors in your index are still the ones you pasted.</p>
+
+<h2>The null distribution, derived</h2>
+<p>Two independent vectors drawn uniformly from the unit sphere in <code>d</code> dimensions have a cosine whose density is exactly</p>
+<pre>f(x) = (1 - x^2)^((d-3)/2) / B(1/2, (d-1)/2)     for x in (-1, 1)</pre>
+<p>Equivalently <code>(1 + X)/2</code> is Beta((d-1)/2, (d-1)/2). That form gives the two numbers this page leans on without any approximation. A Beta(a, a) variate has variance <code>1 / (4(2a + 1))</code>; substituting <code>a = (d-1)/2</code> makes <code>2a + 1 = d</code>, so the variance is <code>1/(4d)</code>, and <code>X = 2Y - 1</code> multiplies it by 4. So <strong>the null has mean 0 and standard deviation exactly 1 over the square root of d</strong>. The page also runs a seeded Monte Carlo at your dimension on every calibration and prints the measured standard deviation next to the predicted one with a standard error, so the identity is checked in front of you rather than asserted.</p>
+<p>The tail probability is the regularized incomplete beta function: <code>P(X &gt;= t) = I_((1-t)/2)((d-1)/2, (d-1)/2)</code>. At d=1536 and t=0.8 that number is far below the smallest positive double, so evaluating the density directly returns zero and any ratio built on it returns NaN. It is computed here in log space throughout: a Lanczos log-gamma for the beta normalizer, a Lentz continued fraction for the incomplete beta, and the result reported as a base-10 exponent. The implementation is checked against three cases with elementary closed forms, and the page prints that check with the errors when you calibrate: at d=2 the tail is arccos(t)/pi, at d=3 the cosine is uniform on (-1, 1) so the tail is (1-t)/2, and at d=4 the tail is (1/pi)(pi/2 - t sqrt(1-t^2) - arcsin t).</p>
+
+<footer>
+  <nav>
+    <a href="https://elitesystem.ai">An elitesystem.ai tool</a>
+    <a href="https://github.com/0xelitesystem/embedding-similarity-calibrator">Source</a>
+    <a href="https://0xelitesystem.github.io/">More tools</a>
+  </nav>
+  <p class="fine">MIT licensed. One HTML file, no dependencies, no network calls, no storage beyond the theme setting.</p>
+</footer>
+
+</div>
+
+<script>
+'use strict';
+(function () {
+
+/* ------------------------------------------------------------------ *
+ * limits
+ * ------------------------------------------------------------------ */
+var MAX_CHARS = 24000000;
+var MAX_VECTORS = 5000;
+var MAX_DIM = 8192;
+var MAX_COMPONENTS = 6000000;
+var MIN_VECTORS = 50;
+var TAIL_MIN_SAMPLES = 10;
+var NORM_TOL = 1e-3;
+var DUP_COS = 1 - 1e-6;
+var ANISO_GATE = 0.5;
+var TAU_GATE = 0.90;
+var RERANK_QUERIES = 25;
+var RERANK_K = 10;
+var SPEARMAN_GATE = 0.9;
+var SPEARMAN_MIN_N = 20;
+
+/* ------------------------------------------------------------------ *
+ * small helpers
+ * ------------------------------------------------------------------ */
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function fx(x, k) {
+  if (!Number.isFinite(x)) return 'n/a';
+  return x.toFixed(k);
+}
+function grp(x) {
+  if (!Number.isFinite(x)) return 'n/a';
+  var neg = x < 0, s = String(Math.round(Math.abs(x))), out = '';
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 === 0) out += ',';
+    out += s.charAt(i);
+  }
+  return (neg ? '-' : '') + out;
+}
+function pctStr(p, k) {
+  if (!Number.isFinite(p)) return 'n/a';
+  return (p * 100).toFixed(k === undefined ? 2 : k) + '%';
+}
+function logTailStr(lg) {
+  if (!Number.isFinite(lg)) return 'n/a';
+  var l10 = lg / Math.LN10;
+  if (l10 > -4) return Math.exp(lg).toPrecision(3);
+  return '10^' + l10.toFixed(1);
+}
+
+/* ------------------------------------------------------------------ *
+ * KERNEL: self-contained numeric core.
+ * Runs on the main thread as a fallback and inside a blob Worker when
+ * one can be constructed. It closes over nothing.
+ * ------------------------------------------------------------------ */
+function KERNEL(job) {
+  var LZ = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
+  function lgamma(z) {
+    if (z < 0.5) return Math.log(Math.PI / Math.abs(Math.sin(Math.PI * z))) - lgamma(1 - z);
+    z -= 1;
+    var x = LZ[0];
+    for (var i = 1; i < 9; i++) x += LZ[i] / (z + i);
+    var t = z + 7.5;
+    return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+  }
+  function logBeta(a, b) { return lgamma(a) + lgamma(b) - lgamma(a + b); }
+  function betacf(a, b, x) {
+    var FPMIN = 1e-300, EPS = 3e-16;
+    var qab = a + b, qap = a + 1, qam = a - 1;
+    var c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d;
+    var h = d;
+    for (var m = 1; m <= 600; m++) {
+      var m2 = 2 * m;
+      var aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d;
+      var del = d * c; h *= del;
+      if (Math.abs(del - 1) < EPS) break;
+    }
+    return h;
+  }
+  /* log of I_x(a,b), accurate on the small-tail branch x <= (a+1)/(a+b+2) */
+  function logIbetaSmall(x, a, b) {
+    if (x <= 0) return -Infinity;
+    if (x >= 1) return 0;
+    var lf = a * Math.log(x) + b * Math.log1p(-x) - logBeta(a, b);
+    return lf + Math.log(betacf(a, b, x) / a);
+  }
+  /* natural log of P(X >= t) for the cosine of two independent uniform unit vectors */
+  function logNullTail(t, d) {
+    if (!(d >= 2)) return NaN;
+    var a = (d - 1) / 2;
+    if (t <= -1) return 0;
+    if (t >= 1) return -Infinity;
+    var x = (1 - t) / 2;
+    if (x <= 0.5) return logIbetaSmall(x, a, a);
+    var small = Math.exp(logIbetaSmall((1 + t) / 2, a, a));
+    return Math.log1p(-small);
+  }
+  function nullQuantile(p, d) {
+    /* smallest t with P(X >= t) <= p */
+    if (!(p > 0) || !(p < 1)) return NaN;
+    var target = Math.log(p), lo = -1 + 1e-14, hi = 1 - 1e-14;
+    for (var i = 0; i < 200; i++) {
+      var mid = 0.5 * (lo + hi);
+      if (logNullTail(mid, d) > target) lo = mid; else hi = mid;
+    }
+    return 0.5 * (lo + hi);
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function fillGauss(v, off, d, rnd) {
+    var i = 0;
+    while (i < d) {
+      var u = 0, w = 0;
+      while (u === 0) u = rnd();
+      while (w === 0) w = rnd();
+      var r = Math.sqrt(-2 * Math.log(u)), th = 2 * Math.PI * w;
+      v[off + i] = r * Math.cos(th); i++;
+      if (i < d) { v[off + i] = r * Math.sin(th); i++; }
+    }
+  }
+  function normSeg(buf, off, d) {
+    var s = 0;
+    for (var i = 0; i < d; i++) { var q = buf[off + i]; s += q * q; }
+    return Math.sqrt(s);
+  }
+  function normalizeSeg(buf, off, d) {
+    var n = normSeg(buf, off, d);
+    if (n === 0) return 0;
+    for (var i = 0; i < d; i++) buf[off + i] /= n;
+    return n;
+  }
+  function dotSeg(buf, oa, ob, d) {
+    var s = 0;
+    for (var i = 0; i < d; i++) s += buf[oa + i] * buf[ob + i];
+    return s;
+  }
+  function quantile(sorted, p) {
+    var n = sorted.length;
+    if (n === 0) return NaN;
+    if (n === 1) return sorted[0];
+    var h = (n - 1) * p, lo = Math.floor(h), hi = lo + 1;
+    if (hi >= n) return sorted[n - 1];
+    return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
+  }
+  /* Kendall tau between two permutations via merge-sort inversion count */
+  function kendallTau(posA, posB) {
+    var n = posA.length;
+    if (n < 2) return 1;
+    var order = new Int32Array(n);
+    for (var i = 0; i < n; i++) order[posA[i]] = i;
+    var arr = new Int32Array(n);
+    for (var k = 0; k < n; k++) arr[k] = posB[order[k]];
+    var tmp = new Int32Array(n);
+    var inv = 0;
+    function ms(lo, hi) {
+      if (hi - lo < 2) return;
+      var mid = (lo + hi) >> 1;
+      ms(lo, mid); ms(mid, hi);
+      var a = lo, b = mid, o = lo;
+      while (a < mid && b < hi) {
+        if (arr[a] <= arr[b]) { tmp[o++] = arr[a++]; }
+        else { inv += (mid - a); tmp[o++] = arr[b++]; }
+      }
+      while (a < mid) tmp[o++] = arr[a++];
+      while (b < hi) tmp[o++] = arr[b++];
+      for (var z = lo; z < hi; z++) arr[z] = tmp[z];
+    }
+    ms(0, n);
+    return 1 - 4 * inv / (n * (n - 1));
+  }
+
+  /* -------------------- ops -------------------- */
+
+  function opAnalyze(job) {
+    var buf = job.buf, n = job.n, d = job.d;
+    var i, j, k;
+
+    /* norms and zero vectors */
+    var norms = new Float64Array(n);
+    var zeros = [], offTol = [], maxDev = 0;
+    for (i = 0; i < n; i++) {
+      var nm = normSeg(buf, i * d, d);
+      norms[i] = nm;
+      if (!(nm > 1e-12)) { if (zeros.length < 25) zeros.push(i); }
+      else {
+        var dev = Math.abs(nm - 1);
+        if (dev > maxDev) maxDev = dev;
+        if (dev > job.normTol && offTol.length < 25) offTol.push({ i: i, norm: nm });
+      }
+    }
+    var zeroCount = 0, offCount = 0;
+    for (i = 0; i < n; i++) {
+      if (!(norms[i] > 1e-12)) zeroCount++;
+      else if (Math.abs(norms[i] - 1) > job.normTol) offCount++;
+    }
+
+    /* float32 storage detection */
+    var f32Hits = 0, f32Checked = 0;
+    var stride = Math.max(1, Math.floor((n * d) / 20000));
+    for (i = 0; i < n * d; i += stride) {
+      f32Checked++;
+      if (Math.fround(buf[i]) === buf[i]) f32Hits++;
+    }
+
+    /* live float32 measurement at this dimension: 8 probe vectors, both accumulation modes */
+    var probe = new Float64Array(d);
+    var prnd = mulberry32(0x4242);
+    var PROBES = 8, off1 = 0, off2 = 0, dev64 = 0, dev32 = 0, first64 = NaN, first32 = NaN;
+    for (var pr = 0; pr < PROBES; pr++) {
+      fillGauss(probe, 0, d, prnd);
+      normalizeSeg(probe, 0, d);
+      var s64 = 0, s32 = Math.fround(0);
+      for (i = 0; i < d; i++) {
+        var f = Math.fround(probe[i]);
+        s64 += f * f;
+        s32 = Math.fround(s32 + Math.fround(f * f));
+      }
+      var n64 = Math.sqrt(s64), n32 = Math.fround(Math.sqrt(s32));
+      if (pr === 0) { first64 = n64; first32 = n32; }
+      if (n64 !== 1) { off1++; if (Math.abs(n64 - 1) > dev64) dev64 = Math.abs(n64 - 1); }
+      if (n32 !== 1) { off2++; if (Math.abs(n32 - 1) > dev32) dev32 = Math.abs(n32 - 1); }
+    }
+
+    /* bit-identical duplicates via FNV-1a over the raw bit pattern */
+    var bits = new Uint32Array(buf.buffer, buf.byteOffset, n * d * 2);
+    var hashes = new Map();
+    var bitDupes = [], bitDupeCount = 0;
+    for (i = 0; i < n; i++) {
+      var h = 0x811c9dc5, base = i * d * 2, lim = base + d * 2;
+      for (k = base; k < lim; k++) {
+        h ^= bits[k];
+        h = Math.imul(h, 0x01000193);
+      }
+      h = h >>> 0;
+      var bucket = hashes.get(h);
+      if (bucket === undefined) { hashes.set(h, [i]); continue; }
+      var matched = -1;
+      for (var b = 0; b < bucket.length; b++) {
+        var same = true, ob = bucket[b] * d;
+        for (k = 0; k < d; k++) { if (buf[ob + k] !== buf[i * d + k]) { same = false; break; } }
+        if (same) { matched = bucket[b]; break; }
+      }
+      if (matched >= 0) { bitDupeCount++; if (bitDupes.length < 25) bitDupes.push({ a: matched, b: i }); }
+      else bucket.push(i);
+    }
+
+    /* pair sampling */
+    var totalPairs = n * (n - 1) / 2;
+    var budget = Math.floor(2e8 / Math.max(1, d));
+    if (budget < 20000) budget = 20000;
+    if (budget > 2000000) budget = 2000000;
+    var exhaustive = totalPairs <= budget;
+    var take = exhaustive ? totalPairs : budget;
+    var vals = new Float64Array(take);
+    var nearDupes = [], nearDupeCount = 0;
+    var p = 0;
+    if (exhaustive) {
+      for (i = 0; i < n; i++) {
+        if (!(norms[i] > 1e-12)) continue;
+        for (j = i + 1; j < n; j++) {
+          if (!(norms[j] > 1e-12)) continue;
+          var c = dotSeg(buf, i * d, j * d, d) / (norms[i] * norms[j]);
+          if (c > 1) c = 1; else if (c < -1) c = -1;
+          vals[p++] = c;
+          if (c >= job.dupCos) { nearDupeCount++; if (nearDupes.length < 25) nearDupes.push({ a: i, b: j, c: c }); }
+        }
+      }
+    } else {
+      var rnd = mulberry32(0x5EED);
+      var guard = 0;
+      while (p < take && guard < take * 12) {
+        guard++;
+        var x = Math.floor(rnd() * n), y = Math.floor(rnd() * n);
+        if (x === y) continue;
+        if (!(norms[x] > 1e-12) || !(norms[y] > 1e-12)) continue;
+        var c2 = dotSeg(buf, x * d, y * d, d) / (norms[x] * norms[y]);
+        if (c2 > 1) c2 = 1; else if (c2 < -1) c2 = -1;
+        vals[p++] = c2;
+        if (c2 >= job.dupCos) { nearDupeCount++; if (nearDupes.length < 25) nearDupes.push({ a: x, b: y, c: c2 }); }
+      }
+    }
+    var used = vals.subarray(0, p);
+    var mean = 0;
+    for (i = 0; i < p; i++) mean += used[i];
+    mean = p ? mean / p : NaN;
+    var ss = 0;
+    for (i = 0; i < p; i++) { var dv = used[i] - mean; ss += dv * dv; }
+    var sd = p > 1 ? Math.sqrt(ss / (p - 1)) : NaN;
+    var sorted = Float64Array.from(used);
+    sorted.sort();
+
+    /* histogram for the bars */
+    var HB = 40, hist = new Array(HB), lo = -1, hi = 1;
+    for (i = 0; i < HB; i++) hist[i] = 0;
+    if (p > 0) {
+      lo = sorted[0]; hi = sorted[p - 1];
+      if (!(hi > lo)) { hi = lo + 1e-9; }
+      for (i = 0; i < p; i++) {
+        var bidx = Math.floor((used[i] - lo) / (hi - lo) * HB);
+        if (bidx >= HB) bidx = HB - 1;
+        if (bidx < 0) bidx = 0;
+        hist[bidx]++;
+      }
+    }
+
+    /* mean vector and its norm: the primary anisotropy number */
+    var mu = new Float64Array(d), live = 0;
+    for (i = 0; i < n; i++) {
+      if (!(norms[i] > 1e-12)) continue;
+      live++;
+      var o = i * d, sc = 1 / norms[i];
+      for (k = 0; k < d; k++) mu[k] += buf[o + k] * sc;
+    }
+    if (live > 0) for (k = 0; k < d; k++) mu[k] /= live;
+    var muNorm = normSeg(mu, 0, d);
+
+    /* top principal component of the mean-centred unit vectors, power iteration.
+       lam is ||C v|| for a unit v, which is a lower bound on the top eigenvalue. */
+    var pc = null;
+    if (live >= 2 && d >= 2) {
+      var cen = new Float64Array(live * d), row = 0, totVar = 0;
+      for (i = 0; i < n; i++) {
+        if (!(norms[i] > 1e-12)) continue;
+        var oi = i * d, sci = 1 / norms[i], orow = row * d;
+        for (k = 0; k < d; k++) {
+          var e = buf[oi + k] * sci - mu[k];
+          cen[orow + k] = e;
+          totVar += e * e;
+        }
+        row++;
+      }
+      totVar /= live;
+      var iters = job.pcIters;
+      if (!iters) {
+        iters = Math.round(3e7 / (live * d));
+        if (iters < 8) iters = 8;
+        if (iters > 60) iters = 60;
+      }
+      var vrnd = mulberry32(0xC0DE);
+      var v = new Float64Array(d), av = new Float64Array(d);
+      fillGauss(v, 0, d, vrnd);
+      normalizeSeg(v, 0, d);
+      var lam = 0;
+      for (var it = 0; it < iters; it++) {
+        for (k = 0; k < d; k++) av[k] = 0;
+        for (i = 0; i < live; i++) {
+          var oc = i * d, proj = 0;
+          for (k = 0; k < d; k++) proj += cen[oc + k] * v[k];
+          if (proj === 0) continue;
+          for (k = 0; k < d; k++) av[k] += proj * cen[oc + k];
+        }
+        var an = normSeg(av, 0, d);
+        if (!(an > 0)) break;
+        lam = an / live;
+        for (k = 0; k < d; k++) v[k] = av[k] / an;
+      }
+      pc = { lambda: lam, totalVar: totVar, share: totVar > 0 ? lam / totVar : NaN, iters: iters };
+    }
+
+    /* seeded Monte Carlo check of sd = 1/sqrt(d) at this dimension */
+    var mcN = Math.round(3e6 / Math.max(1, d));
+    if (mcN < 500) mcN = 500;
+    if (mcN > 5000) mcN = 5000;
+    var mrnd = mulberry32(0x5EED);
+    var ma = new Float64Array(d), mb = new Float64Array(d);
+    var msum = 0, mss = 0;
+    for (i = 0; i < mcN; i++) {
+      fillGauss(ma, 0, d, mrnd); normalizeSeg(ma, 0, d);
+      fillGauss(mb, 0, d, mrnd); normalizeSeg(mb, 0, d);
+      var cc = 0;
+      for (k = 0; k < d; k++) cc += ma[k] * mb[k];
+      msum += cc; mss += cc * cc;
+    }
+    var mcMean = msum / mcN;
+    var mcSd = Math.sqrt((mss - mcN * mcMean * mcMean) / (mcN - 1));
+
+    /* self-check of the tail implementation against three closed forms */
+    var checks = [];
+    var t1 = 0.5;
+    checks.push({ d: 2, t: t1, got: Math.exp(logNullTail(t1, 2)), want: Math.acos(t1) / Math.PI, form: 'arccos(t)/pi' });
+    checks.push({ d: 3, t: t1, got: Math.exp(logNullTail(t1, 3)), want: (1 - t1) / 2, form: '(1-t)/2' });
+    checks.push({
+      d: 4, t: t1, got: Math.exp(logNullTail(t1, 4)),
+      want: (1 / Math.PI) * (Math.PI / 2 - t1 * Math.sqrt(1 - t1 * t1) - Math.asin(t1)),
+      form: '(1/pi)(pi/2 - t sqrt(1-t^2) - arcsin t)'
+    });
+
+    /* threshold arithmetic */
+    var t = job.threshold;
+    var nullSd = 1 / Math.sqrt(d);
+    var over = 0;
+    for (i = 0; i < p; i++) if (used[i] >= t) over++;
+
+    /* a quantile is only printed when at least tailMin sampled pairs sit above it */
+    var qs = [0.5, 0.75, 0.9, 0.95, 0.99, 0.999];
+    var quants = [];
+    for (i = 0; i < qs.length; i++) {
+      var pr = qs[i];
+      var need = Math.ceil(job.tailMin / (1 - pr));
+      var enough = p >= need;
+      quants.push({
+        p: pr,
+        need: need,
+        emp: enough ? quantile(sorted, pr) : NaN,
+        nul: nullQuantile(1 - pr, d),
+        enough: enough
+      });
+    }
+
+    /* Spearman between pasted row order and cosine to the query */
+    var spear = null;
+    if (job.qbuf && n >= 2) {
+      var qn = normSeg(job.qbuf, 0, d);
+      if (qn > 1e-12) {
+        var cosq = new Float64Array(n);
+        var okq = true;
+        for (i = 0; i < n; i++) {
+          if (!(norms[i] > 1e-12)) { okq = false; break; }
+          var s = 0, oq = i * d;
+          for (k = 0; k < d; k++) s += job.qbuf[k] * buf[oq + k];
+          cosq[i] = s / (qn * norms[i]);
+        }
+        if (okq) {
+          var idx = [];
+          for (i = 0; i < n; i++) idx.push(i);
+          idx.sort(function (a2, b2) { return cosq[a2] - cosq[b2]; });
+          var rank = new Float64Array(n);
+          var ii = 0;
+          while (ii < n) {
+            var jj = ii;
+            while (jj + 1 < n && cosq[idx[jj + 1]] === cosq[idx[ii]]) jj++;
+            var avg = (ii + jj) / 2;
+            for (var z = ii; z <= jj; z++) rank[idx[z]] = avg;
+            ii = jj + 1;
+          }
+          var mr = (n - 1) / 2, num = 0, dr1 = 0, dr2 = 0;
+          for (i = 0; i < n; i++) {
+            var xa = i - mr, ya = rank[i] - mr;
+            num += xa * ya; dr1 += xa * xa; dr2 += ya * ya;
+          }
+          var rho = (dr1 > 0 && dr2 > 0) ? num / Math.sqrt(dr1 * dr2) : NaN;
+          var qover = 0, qtop = -Infinity;
+          for (i = 0; i < n; i++) { if (cosq[i] >= t) qover++; if (cosq[i] > qtop) qtop = cosq[i]; }
+          spear = { rho: rho, n: n, overThreshold: qover, top: qtop };
+        }
+      }
+    }
+
+    return {
+      op: 'analyze', n: n, d: d,
+      norms: { zeroCount: zeroCount, zeroExamples: zeros, offCount: offCount, offExamples: offTol, maxDev: maxDev, tol: job.normTol },
+      f32: {
+        fraction: f32Checked ? f32Hits / f32Checked : NaN, checked: f32Checked,
+        probes: PROBES, probe64: first64, probe32: first32,
+        off64: off1, off32: off2, dev64: dev64, dev32: dev32
+      },
+      dupes: { bitCount: bitDupeCount, bitExamples: bitDupes, nearCount: nearDupeCount, nearExamples: nearDupes, nearCos: job.dupCos },
+      pairs: { used: p, total: totalPairs, exhaustive: exhaustive, mean: mean, sd: sd, min: p ? sorted[0] : NaN, max: p ? sorted[p - 1] : NaN },
+      hist: { bins: hist, lo: lo, hi: hi },
+      aniso: { muNorm: muNorm, live: live, pc: pc },
+      mc: { n: mcN, mean: mcMean, sd: mcSd, predicted: nullSd, se: mcSd / Math.sqrt(2 * (mcN - 1)) },
+      checks: checks,
+      threshold: {
+        t: t, nullSd: nullSd, nullSigma: t / nullSd,
+        logNullTail: logNullTail(t, d),
+        empSigma: (Number.isFinite(sd) && sd > 0) ? (t - mean) / sd : NaN,
+        over: over, overFrac: p ? over / p : NaN
+      },
+      quants: quants,
+      spearman: spear
+    };
+  }
+
+  function opRerank(job) {
+    var buf = job.buf, n = job.n, d = job.d, i, k, q;
+    var norms = new Float64Array(n);
+    for (i = 0; i < n; i++) norms[i] = normSeg(buf, i * d, d);
+    var mu = new Float64Array(d), live = 0;
+    for (i = 0; i < n; i++) {
+      if (!(norms[i] > 1e-12)) continue;
+      live++;
+      var o = i * d, sc = 1 / norms[i];
+      for (k = 0; k < d; k++) mu[k] += buf[o + k] * sc;
+    }
+    if (live > 0) for (k = 0; k < d; k++) mu[k] /= live;
+    var muNorm = normSeg(mu, 0, d);
+
+    var sub = new Float64Array(n * d);
+    for (i = 0; i < n; i++) {
+      var oi = i * d, sci = norms[i] > 1e-12 ? 1 / norms[i] : 0;
+      for (k = 0; k < d; k++) sub[oi + k] = buf[oi + k] * sci - mu[k];
+      normalizeSeg(sub, oi, d);
+    }
+
+    var Q = Math.min(job.queries, n);
+    var step = Math.max(1, Math.floor(n / Q));
+    var qi = [];
+    for (i = 0; i < n && qi.length < Q; i += step) if (norms[i] > 1e-12) qi.push(i);
+    var K = Math.min(job.topK, n - 1);
+    var tauSum = 0, ovSum = 0, changed = 0, maxShift = 0, done = 0;
+
+    for (q = 0; q < qi.length; q++) {
+      var qv = qi[q];
+      var ids = [], A = [], B = [];
+      for (i = 0; i < n; i++) {
+        if (i === qv || !(norms[i] > 1e-12)) continue;
+        ids.push(i);
+        A.push(dotSeg(buf, qv * d, i * d, d) / (norms[qv] * norms[i]));
+        B.push(dotSeg(sub, qv * d, i * d, d));
+      }
+      var m = ids.length;
+      if (m < 2) continue;
+      done++;
+      var oa = [], ob = [];
+      for (i = 0; i < m; i++) { oa.push(i); ob.push(i); }
+      oa.sort(function (x, y) { return (A[y] - A[x]) || (x - y); });
+      ob.sort(function (x, y) { return (B[y] - B[x]) || (x - y); });
+      var pa = new Int32Array(m), pb = new Int32Array(m);
+      for (i = 0; i < m; i++) { pa[oa[i]] = i; pb[ob[i]] = i; }
+      for (i = 0; i < m; i++) {
+        var sh = Math.abs(pa[i] - pb[i]);
+        if (sh > maxShift) maxShift = sh;
+      }
+      var kk = Math.min(K, m);
+      var setA = new Set();
+      for (i = 0; i < kk; i++) setA.add(oa[i]);
+      var ov = 0;
+      for (i = 0; i < kk; i++) if (setA.has(ob[i])) ov++;
+      ovSum += ov / kk;
+      if (ov < kk) changed++;
+      tauSum += kendallTau(pa, pb);
+    }
+    return {
+      op: 'rerank', queries: done, k: K, muNorm: muNorm,
+      meanTau: done ? tauSum / done : NaN,
+      meanOverlap: done ? ovSum / done : NaN,
+      changedTopK: changed,
+      changedFrac: done ? changed / done : NaN,
+      maxShift: maxShift
+    };
+  }
+
+  if (job.op === 'rerank') return opRerank(job);
+  return opAnalyze(job);
+}
+
+/* ------------------------------------------------------------------ *
+ * worker plumbing, with a synchronous fallback
+ * ------------------------------------------------------------------ */
+var workerUrl = null, workerBroken = false;
+function getWorker() {
+  if (workerBroken) return null;
+  try {
+    if (typeof Worker !== 'function' || typeof Blob !== 'function' ||
+        typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      workerBroken = true; return null;
+    }
+    if (workerUrl === null) {
+      var body = 'var KERNEL=' + KERNEL.toString() +
+        ';self.onmessage=function(e){try{self.postMessage({ok:true,res:KERNEL(e.data)});}' +
+        'catch(err){self.postMessage({ok:false,err:String(err&&err.message||err)});}};';
+      workerUrl = URL.createObjectURL(new Blob([body], { type: 'text/javascript' }));
+    }
+    return new Worker(workerUrl);
+  } catch (e) {
+    workerBroken = true;
+    return null;
+  }
+}
+function runJob(job, done) {
+  var w = getWorker();
+  if (!w) {
+    setTimeout(function () {
+      var res;
+      try { res = KERNEL(job); } catch (e) { done(null, String(e && e.message || e)); return; }
+      done(res, null);
+    }, 0);
+    return;
+  }
+  var settled = false;
+  w.onmessage = function (ev) {
+    if (settled) return;
+    settled = true;
+    try { w.terminate(); } catch (e2) {}
+    if (ev.data && ev.data.ok) done(ev.data.res, null);
+    else done(null, (ev.data && ev.data.err) || 'worker failed');
+  };
+  w.onerror = function () {
+    if (settled) return;
+    settled = true;
+    try { w.terminate(); } catch (e3) {}
+    workerBroken = true;
+    var res;
+    try { res = KERNEL(job); } catch (e4) { done(null, String(e4 && e4.message || e4)); return; }
+    done(res, null);
+  };
+  try {
+    w.postMessage(job);
+  } catch (e5) {
+    if (settled) return;
+    settled = true;
+    workerBroken = true;
+    var r2;
+    try { r2 = KERNEL(job); } catch (e6) { done(null, String(e6 && e6.message || e6)); return; }
+    done(r2, null);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * fixtures: synthetic corpora generated here from fixed seeds
+ * ------------------------------------------------------------------ */
+function mul32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gaussInto(v, off, d, rnd) {
+  var i = 0;
+  while (i < d) {
+    var u = 0, w = 0;
+    while (u === 0) u = rnd();
+    while (w === 0) w = rnd();
+    var r = Math.sqrt(-2 * Math.log(u)), th = 2 * Math.PI * w;
+    v[off + i] = r * Math.cos(th); i++;
+    if (i < d) { v[off + i] = r * Math.sin(th); i++; }
+  }
+}
+function normInto(v, off, d) {
+  var s = 0, i;
+  for (i = 0; i < d; i++) { var q = v[off + i]; s += q * q; }
+  s = Math.sqrt(s);
+  if (s === 0) return 0;
+  for (i = 0; i < d; i++) v[off + i] /= s;
+  return s;
+}
+/* v_i = normalize(a * u + b * topic_{i mod K} + g_i / sqrt(d)) */
+function genCorpus(n, d, a, b, K, seed) {
+  var rnd = mul32(seed);
+  var u = new Float64Array(d);
+  gaussInto(u, 0, d, rnd); normInto(u, 0, d);
+  var T = new Float64Array(K * d), k;
+  for (k = 0; k < K; k++) { gaussInto(T, k * d, d, rnd); normInto(T, k * d, d); }
+  var buf = new Float64Array(n * d), g = new Float64Array(d);
+  var isd = 1 / Math.sqrt(d);
+  for (var i = 0; i < n; i++) {
+    gaussInto(g, 0, d, rnd);
+    var o = i * d, tc = (i % K) * d;
+    for (var j = 0; j < d; j++) buf[o + j] = a * u[j] + b * T[tc + j] + g[j] * isd;
+    normInto(buf, o, d);
+  }
+  return buf;
+}
+var FIXTURES = Object.create(null);
+FIXTURES['anisotropic-1536'] = function () {
+  return { n: 120, d: 1536, buf: genCorpus(120, 1536, 0.7138, 0.5382, 6, 0x5EED), labels: null, query: null,
+    note: 'anisotropic-1536: 120 synthetic vectors at d=1536, shared-direction weight 0.7138, topic weight 0.5382 over 6 topics, seed 0x5EED.' };
+};
+FIXTURES['low-anisotropy-768'] = function () {
+  return { n: 120, d: 768, buf: genCorpus(120, 768, 0.05, 0.30, 8, 0xC0FFEE), labels: null, query: null,
+    note: 'low-anisotropy-768: 120 synthetic vectors at d=768, shared-direction weight 0.05, topic weight 0.30 over 8 topics, seed 0xC0FFEE.' };
+};
+FIXTURES['broken-index'] = function () {
+  var n = 60, d = 64;
+  var buf = genCorpus(n, d, 0.35, 0.45, 5, 0xBADBAD);
+  var labels = [], i, k;
+  for (i = 0; i < n; i++) labels.push('chunk-' + (i + 1));
+  /* an empty chunk that reached the index */
+  for (k = 0; k < d; k++) buf[7 * d + k] = 0;
+  labels[7] = 'chunk-8-empty';
+  /* a block that was never normalized */
+  var rnd = mul32(0x1111);
+  for (i = 12; i <= 20; i++) {
+    var sc = 0.4 + rnd() * 2.6;
+    for (k = 0; k < d; k++) buf[i * d + k] *= sc;
+  }
+  /* the same chunk embedded twice */
+  for (k = 0; k < d; k++) buf[30 * d + k] = buf[3 * d + k];
+  labels[30] = 'chunk-4-again';
+  /* two different strings that landed in nearly the same place */
+  for (k = 0; k < d; k++) buf[31 * d + k] = buf[4 * d + k] + (k === 0 ? 3e-4 : 0);
+  normInto(buf, 31 * d, d);
+  labels[31] = 'shared-footer';
+  /* half a migration: the tail is a different dimension */
+  var dims = [];
+  var out = [];
+  for (i = 0; i < n; i++) {
+    var dd = (i >= 45) ? 32 : d;
+    var v = new Float64Array(dd);
+    for (k = 0; k < dd; k++) v[k] = buf[i * d + k];
+    if (i >= 45) normInto(v, 0, dd);
+    out.push(v);
+    dims.push(dd);
+  }
+  return { ragged: out, labels: labels, query: null,
+    note: 'broken-index: 60 synthetic vectors with five injected defects, seed 0xBADBAD.' };
+};
+FIXTURES['distance-sorted'] = function () {
+  var n = 60, d = 256;
+  var buf = genCorpus(n, d, 0.30, 0.40, 4, 0xD157);
+  var q = new Float64Array(d);
+  for (var k = 0; k < d; k++) q[k] = buf[k];
+  /* sort the rows ascending by cosine to the query: a distance sorted as a similarity */
+  var idx = [], i;
+  for (i = 0; i < n; i++) idx.push(i);
+  var cos = new Float64Array(n);
+  for (i = 0; i < n; i++) {
+    var s = 0;
+    for (k = 0; k < d; k++) s += q[k] * buf[i * d + k];
+    cos[i] = s;
+  }
+  idx.sort(function (a, b) { return cos[a] - cos[b]; });
+  var re = new Float64Array(n * d), labels = [];
+  for (i = 0; i < n; i++) {
+    for (k = 0; k < d; k++) re[i * d + k] = buf[idx[i] * d + k];
+    labels.push('result-' + (i + 1));
+  }
+  return { n: n, d: d, buf: re, labels: labels, query: q,
+    note: 'distance-sorted: 60 synthetic vectors at d=256 returned in ascending cosine order, seed 0xD157.' };
+};
+
+/* ------------------------------------------------------------------ *
+ * parsing
+ * ------------------------------------------------------------------ */
+function isNumTok(t) {
+  if (t === '') return false;
+  var v = Number(t);
+  return Number.isFinite(v);
+}
+function collectFromJson(node, out, depth) {
+  if (depth > 12 || out.vecs.length > MAX_VECTORS) return;
+  if (Array.isArray(node)) {
+    var allNum = node.length >= 2, i;
+    for (i = 0; i < node.length; i++) {
+      if (typeof node[i] !== 'number' || !Number.isFinite(node[i])) { allNum = false; break; }
+    }
+    if (allNum) { out.vecs.push(Float64Array.from(node)); out.labels.push(null); return; }
+    for (i = 0; i < node.length; i++) collectFromJson(node[i], out, depth + 1);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    var keys = Object.keys(node);
+    var lab = null;
+    for (var q = 0; q < keys.length; q++) {
+      var kk = keys[q];
+      if ((kk === 'id' || kk === 'label' || kk === 'key') && typeof node[kk] === 'string') { lab = node[kk]; break; }
+    }
+    var before = out.vecs.length;
+    for (var j = 0; j < keys.length; j++) {
+      if (!Object.prototype.hasOwnProperty.call(node, keys[j])) continue;
+      collectFromJson(node[keys[j]], out, depth + 1);
+    }
+    if (lab !== null && out.vecs.length === before + 1) out.labels[before] = lab;
+  }
+}
+function parseLine(line) {
+  var s = line.trim();
+  if (s === '') return null;
+  if (s.charAt(0) === '{' || (s.charAt(0) === '[' && s.charAt(s.length - 1) === ']' && s.indexOf('[', 1) >= 0)) {
+    var j;
+    try { j = JSON.parse(s); } catch (e) { j = undefined; }
+    if (j !== undefined) {
+      var acc = { vecs: [], labels: [] };
+      collectFromJson(j, acc, 0);
+      if (acc.vecs.length === 1) return { vec: acc.vecs[0], label: acc.labels[0] };
+      if (acc.vecs.length > 1) return { multi: acc };
+      return { bad: true };
+    }
+  }
+  s = s.replace(/^\[+/, '').replace(/\]+$/, '');
+  var toks = s.split(/[\s,;]+/);
+  var label = null, start = 0;
+  while (start < toks.length && toks[start] === '') start++;
+  if (start < toks.length && !isNumTok(toks[start])) { label = toks[start]; start++; }
+  var nums = [];
+  for (var i = start; i < toks.length; i++) {
+    var t = toks[i];
+    if (t === '') continue;
+    if (!isNumTok(t)) return { bad: true, tok: t };
+    nums.push(Number(t));
+  }
+  if (nums.length < 2) return { bad: true, tok: nums.length === 1 ? String(nums[0]) : '' };
+  return { vec: Float64Array.from(nums), label: label };
+}
+function parseVectors(text) {
+  var res = { vecs: [], labels: [], error: null, fixtureNote: null, query: null, directive: null, ignoredAfterDirective: false };
+  if (typeof text !== 'string') { res.error = 'No input received.'; return res; }
+  if (text.length > MAX_CHARS) {
+    res.error = 'Input is ' + grp(text.length) + ' characters. The limit is ' + grp(MAX_CHARS) + '. Nothing was parsed.';
+    return res;
+  }
+  if (text.trim() === '') { res.error = 'Input is empty. Paste vectors, or press one of the example buttons.'; return res; }
+
+  var rawLines = text.split(/\r\n|\r|\n/);
+  var body = [], i;
+  for (i = 0; i < rawLines.length; i++) {
+    var ln = rawLines[i].trim();
+    if (ln.charAt(0) === '#') {
+      var m = /^#\s*example\s+([a-z0-9-]+)\s*$/i.exec(ln);
+      if (m && res.directive === null) {
+        var name = m[1].toLowerCase();
+        if (!Object.prototype.hasOwnProperty.call(FIXTURES, name)) {
+          res.error = 'Unknown example "' + name + '". Known: anisotropic-1536, low-anisotropy-768, broken-index, distance-sorted.';
+          return res;
+        }
+        res.directive = name;
+      }
+      continue;
+    }
+    body.push(rawLines[i]);
+  }
+  if (res.directive !== null) {
+    var f = FIXTURES[res.directive]();
+    res.fixtureNote = f.note;
+    for (var b = 0; b < body.length; b++) { if (body[b].trim() !== '') { res.ignoredAfterDirective = true; break; } }
+    if (f.ragged) {
+      res.vecs = f.ragged;
+      res.labels = f.labels;
+    } else {
+      for (i = 0; i < f.n; i++) res.vecs.push(f.buf.subarray(i * f.d, (i + 1) * f.d));
+      res.labels = f.labels || [];
+      while (res.labels.length < f.n) res.labels.push(null);
+    }
+    res.query = f.query;
+    return res;
+  }
+
+  var joined = body.join('\n').trim();
+  if (joined === '') { res.error = 'Input has comments but no vectors.'; return res; }
+
+  if (joined.charAt(0) === '[' || joined.charAt(0) === '{') {
+    var doc;
+    try { doc = JSON.parse(joined); } catch (e) { doc = undefined; }
+    if (doc !== undefined) {
+      var acc = { vecs: [], labels: [] };
+      collectFromJson(doc, acc, 0);
+      if (acc.vecs.length === 0) {
+        res.error = 'That parsed as JSON but contained no array of numbers with length 2 or more.';
+        return res;
+      }
+      res.vecs = acc.vecs;
+      res.labels = acc.labels;
+      return res;
+    }
+  }
+
+  var bad = 0, firstBad = -1, firstBadTok = '';
+  for (i = 0; i < body.length; i++) {
+    var r = parseLine(body[i]);
+    if (r === null) continue;
+    if (r.bad) {
+      bad++;
+      if (firstBad < 0) { firstBad = i + 1; firstBadTok = r.tok || ''; }
+      continue;
+    }
+    if (r.multi) {
+      for (var z = 0; z < r.multi.vecs.length; z++) { res.vecs.push(r.multi.vecs[z]); res.labels.push(r.multi.labels[z]); }
+      continue;
+    }
+    res.vecs.push(r.vec);
+    res.labels.push(r.label);
+  }
+  if (bad > 0) {
+    res.error = grp(bad) + ' line' + (bad === 1 ? '' : 's') + ' could not be read as a vector. The first is line ' +
+      firstBad + (firstBadTok ? (', which contains "' + firstBadTok.slice(0, 40) + '"') : '') +
+      '. A vector line needs two or more numbers separated by commas, spaces, tabs or semicolons. Nothing was calibrated.';
+    res.vecs = [];
+    return res;
+  }
+  if (res.vecs.length === 0) res.error = 'No vectors found in that input.';
+  return res;
+}
+
+/* ------------------------------------------------------------------ *
+ * DOM
+ * ------------------------------------------------------------------ */
+function $(id) { return document.getElementById(id); }
+var outEl = $('out'), statusEl = $('status'), heroEl = $('heroOut');
+var lastReport = null, lastJson = null, lastState = null;
+
+function setStatus(s) { statusEl.textContent = s; }
+
+function barsHtml(hist, lo, hi, total) {
+  var max = 0, i;
+  for (i = 0; i < hist.length; i++) if (hist[i] > max) max = hist[i];
+  if (max === 0) return '';
+  var step = (hi - lo) / hist.length;
+  var h = '<div class="bars">';
+  for (i = 0; i < hist.length; i++) {
+    var edge = lo + i * step;
+    var w = (hist[i] / max) * 100;
+    h += '<div class="bar"><span class="lab">' + esc(fx(edge, 3)) + '</span>' +
+      '<span class="track"><span class="fill" style="width:' + w.toFixed(2) + '%"></span></span>' +
+      '<span class="cnt">' + esc(grp(hist[i])) + '</span></div>';
+  }
+  h += '</div><p class="fine">' + esc(grp(total)) + ' sampled pair cosines in ' + hist.length +
+    ' bins from ' + esc(fx(lo, 4)) + ' to ' + esc(fx(hi, 4)) + '.</p>';
+  return h;
+}
+
+function gateHtml(g) {
+  var h = '<div class="panel block"><h3>Preflight gate: blocked</h3>';
+  h += '<p>Calibration did not run. ' + esc(g.blocks.length === 1 ? 'One condition' : (g.blocks.length + ' conditions')) +
+    ' below must be resolved in the data, not in the reader.</p><ul>';
+  for (var i = 0; i < g.blocks.length; i++) h += '<li>' + g.blocks[i] + '</li>';
+  h += '</ul>';
+  if (g.offerNormalize) {
+    h += '<p>The only blocking condition is norms outside tolerance. Cosine is scale invariant, so cosine on normalized copies is well defined.</p>' +
+      '<div class="btns"><button id="normBtn" type="button">Normalize copies and re-run</button></div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function hygieneHtml(a, labels) {
+  var h = '<div class="panel"><h3>Index hygiene</h3><div class="tw"><table class="data narrow"><thead><tr>' +
+    '<th>Check</th><th class="num">Count</th><th>Result</th></tr></thead><tbody>';
+  function row(name, count, tag, cls) {
+    h += '<tr><td>' + esc(name) + '</td><td class="num">' + esc(grp(count)) + '</td><td><span class="tag ' + cls + '">' + esc(tag) + '</span></td></tr>';
+  }
+  row('Distinct dimensions', 1, 'single dimension ' + a.d, 'ok');
+  row('Zero vectors', a.norms.zeroCount, a.norms.zeroCount ? 'blocking' : 'none', a.norms.zeroCount ? 'bad' : 'ok');
+  row('Norms outside ' + a.norms.tol + ' tolerance', a.norms.offCount, a.norms.offCount ? 'blocking' : 'within tolerance', a.norms.offCount ? 'bad' : 'ok');
+  row('Bit-identical duplicate vectors', a.dupes.bitCount, a.dupes.bitCount ? 'same text embedded twice' : 'none', a.dupes.bitCount ? 'warn' : 'ok');
+  row('Cosine at or above ' + a.dupes.nearCos + ', not bit-identical', a.dupes.nearCount, a.dupes.nearCount ? 'near-duplicate text' : 'none', a.dupes.nearCount ? 'warn' : 'ok');
+  h += '</tbody></table></div>';
+  h += '<p class="fine">Largest deviation from unit norm across all ' + esc(grp(a.n)) + ' vectors: ' +
+    esc(a.norms.maxDev.toExponential(2)) + '. Components that survive a float32 round trip unchanged: ' +
+    esc(pctStr(a.f32.fraction, 1)) + ' of ' + esc(grp(a.f32.checked)) + ' sampled.</p>';
+  h += '<p class="fine">Measured in this browser on this run. ' + esc(grp(a.f32.probes)) + ' unit vectors were built at d=' + a.d +
+    ' and their components rounded to float32. Under float64 accumulation ' + esc(grp(a.f32.off64)) + ' of ' + esc(grp(a.f32.probes)) +
+    ' had a norm that was not exactly 1, largest deviation ' + esc(a.f32.dev64.toExponential(2)) +
+    '. Under float32 accumulation, the way a numeric library sums it, ' + esc(grp(a.f32.off32)) + ' of ' + esc(grp(a.f32.probes)) +
+    ' were not exactly 1, largest deviation ' + esc(a.f32.dev32.toExponential(2)) + '. The first probe read ' +
+    esc(a.f32.probe64.toFixed(10)) + ' and ' + esc(a.f32.probe32.toFixed(10)) +
+    '. A gate written as an equality against 1 rejects healthy vectors on a result that changes with the vector and with where the sum was accumulated, which is why the check above uses a tolerance instead.</p>';
+  if (a.dupes.bitCount > 0) {
+    h += '<p class="fine">Bit-identical example' + (a.dupes.bitExamples.length === 1 ? '' : 's') + ': ';
+    var pb = [];
+    for (var i = 0; i < a.dupes.bitExamples.length && i < 5; i++) {
+      var e = a.dupes.bitExamples[i];
+      pb.push(esc(nameOf(labels, e.a)) + ' and ' + esc(nameOf(labels, e.b)));
+    }
+    h += pb.join('; ') + '.</p>';
+  }
+  if (a.dupes.nearCount > 0) {
+    h += '<p class="fine">Near-duplicate example' + (a.dupes.nearExamples.length === 1 ? '' : 's') + ': ';
+    var pn = [];
+    for (var j = 0; j < a.dupes.nearExamples.length && j < 5; j++) {
+      var f = a.dupes.nearExamples[j];
+      pn.push(esc(nameOf(labels, f.a)) + ' and ' + esc(nameOf(labels, f.b)) + ' at ' + esc(fx(f.c, 8)));
+    }
+    h += pn.join('; ') + '.</p>';
+  }
+  h += '<p class="fine">Bit-identical detection covers all ' + esc(grp(a.pairs.total)) + ' pairs. Near-duplicate detection covers the ' +
+    esc(grp(a.pairs.used)) + ' pairs that were scored' +
+    (a.pairs.exhaustive ? ', which is all of them.' : ', a random sample of the ' + esc(grp(a.pairs.total)) + ' total.') + '</p>';
+  h += '</div>';
+  return h;
+}
+
+function nameOf(labels, i) {
+  if (labels && labels[i]) return String(labels[i]).slice(0, 40);
+  return 'row ' + (i + 1);
+}
+
+function render(a, labels, meta) {
+  var t = a.threshold;
+  var h = '';
+
+  if (meta.normalized) {
+    h += '<div class="msg">Calibrated on L2-normalized copies held in memory. The vectors you pasted still have the norms reported below.</div>';
+  }
+  if (meta.fixtureNote) {
+    h += '<div class="msg">Synthetic corpus generated in this page, not real model output. ' + esc(meta.fixtureNote) + '</div>';
+  }
+
+  /* headline */
+  h += '<div class="panel calm"><h3>Where your threshold sits</h3>';
+  h += '<p class="verdict">Your threshold is <b>' + esc(fx(t.t, 2)) + '</b>. At d=' + a.d +
+    ' the random-vector null has standard deviation <b>' + esc(fx(t.nullSd, 4)) + '</b>, so ' + esc(fx(t.t, 2)) +
+    ' sits <b>' + esc(fx(t.nullSigma, 1)) + ' sigma</b> out against it. Your own unrelated pairs center at <b>' +
+    esc(fx(a.pairs.mean, 4)) + '</b> with standard deviation <b>' + esc(fx(a.pairs.sd, 4)) +
+    '</b>, so the same threshold sits <b>' + esc(fx(t.empSigma, 1)) + ' sigma</b> out against them.</p>';
+  h += '<div class="stats">' +
+    '<div class="stat key"><div class="n">' + esc(fx(t.nullSigma, 1)) + '</div><div class="l">sigma above the theoretical null</div></div>' +
+    '<div class="stat hot"><div class="n">' + esc(fx(t.empSigma, 1)) + '</div><div class="l">sigma above your unrelated pairs</div></div>' +
+    '<div class="stat"><div class="n">' + esc(grp(t.over)) + '</div><div class="l">of ' + esc(grp(a.pairs.used)) + ' sampled pairs at or above it</div></div>' +
+    '<div class="stat"><div class="n">' + esc(logTailStr(t.logNullTail)) + '</div><div class="l">exact null tail at this threshold</div></div>' +
+    '</div>';
+  h += '<p class="fine">The null tail is the regularized incomplete beta evaluated in log space; below 1e-4 it is printed as a base-10 exponent because the value itself is smaller than the smallest positive double. The two sigma figures are the same threshold measured against two different distributions, and only one of them was made by your model.</p>';
+  h += '</div>';
+
+  /* assumption */
+  h += '<div class="panel assume"><h3>Assumption, not a measurement</h3>' +
+    '<p>Every unrelated-pair number below assumes that a randomly drawn pair of your ' + esc(grp(a.n)) +
+    ' vectors is unrelated. In a topically narrow index that is false, random pairs really are related, this distribution shifts right, and every cutoff derived from it comes out too high. Nothing on this page can detect that for you.</p></div>';
+
+  /* cutoffs */
+  h += '<div class="panel"><h3>Cutoffs with a stated false-positive rate</h3>' +
+    '<p class="fine">Read as: at this cutoff, this fraction of unrelated pairs clears it. The recall you give up is not computed here, because that needs labelled related pairs and there are none in this input.</p>' +
+    '<div class="tw"><table class="data"><thead><tr><th>Unrelated pairs clearing it</th>' +
+    '<th class="num">Cutoff from your vectors</th><th class="num">Cutoff under the theoretical null</th><th>Gap</th></tr></thead><tbody>';
+  for (var qi = 0; qi < a.quants.length; qi++) {
+    var q = a.quants[qi];
+    var lab = pctStr(1 - q.p, (1 - q.p) < 0.01 ? 2 : 0);
+    if (!q.enough) {
+      h += '<tr><td>' + esc(lab) + '</td><td class="num">refused</td><td class="num">' + esc(fx(q.nul, 4)) +
+        '</td><td class="fine">needs ' + esc(grp(q.need)) + ' pairs to put ' + TAIL_MIN_SAMPLES + ' above it, this run scored ' + esc(grp(a.pairs.used)) + '</td></tr>';
+      continue;
+    }
+    var gap = q.emp - q.nul;
+    h += '<tr><td>' + esc(lab) + '</td><td class="num">' + esc(fx(q.emp, 4)) + '</td><td class="num">' +
+      esc(fx(q.nul, 4)) + '</td><td class="num">' + esc((gap >= 0 ? '+' : '') + fx(gap, 4)) + '</td></tr>';
+  }
+  h += '</tbody></table></div>';
+  h += '<p>Against your own vectors, ' + esc(grp(t.over)) + ' of ' + esc(grp(a.pairs.used)) +
+    ' sampled pairs reach ' + esc(fx(t.t, 2)) + ' (' + esc(pctStr(t.overFrac, 3)) + '). The highest unrelated pair in this corpus is ' +
+    esc(fx(a.pairs.max, 4)) + ' and the lowest is ' + esc(fx(a.pairs.min, 4)) + '.</p>';
+  h += barsHtml(a.hist.bins, a.hist.lo, a.hist.hi, a.pairs.used);
+  h += '<p class="fine">' + (a.pairs.exhaustive
+    ? ('All ' + esc(grp(a.pairs.total)) + ' pairs were scored.')
+    : (esc(grp(a.pairs.used)) + ' pairs were sampled at random from the ' + esc(grp(a.pairs.total)) + ' available. The sample is what the percentiles above are computed from.')) +
+    ' Pairs drawn from ' + esc(grp(a.n)) + ' vectors share vectors with each other, so they are not independent draws: the effective sample size is closer to ' +
+    esc(grp(a.n)) + ' than to ' + esc(grp(a.pairs.used)) + '.</p></div>';
+
+  /* hygiene, which passed, otherwise nothing above would have rendered */
+  h += hygieneHtml(a, labels);
+
+  /* anisotropy, primary number, then the gated panel */
+  var mn = a.aniso.muNorm;
+  h += '<div class="panel"><h3>Anisotropy</h3>';
+  h += '<div class="stats">' +
+    '<div class="stat key"><div class="n">' + esc(fx(mn, 4)) + '</div><div class="l">mean-vector norm (primary)</div></div>' +
+    '<div class="stat"><div class="n">' + (a.aniso.pc ? esc(pctStr(a.aniso.pc.share, 1)) : 'n/a') +
+    '</div><div class="l">variance in the top principal direction</div></div>' +
+    '</div>';
+  h += '<p class="fine">The mean-vector norm is the norm of the average of your unit-normalized vectors. The principal direction figure is a power-iteration lower bound' +
+    (a.aniso.pc ? (' over ' + a.aniso.pc.iters + ' iterations') : '') +
+    ', computed on the mean-centred vectors, so it measures a different thing: the strongest direction of spread once the shared offset is already gone.</p>';
+  h += '<p><strong>Expectation, stated before the rerank runs:</strong> a mean-vector norm at or above ' + ANISO_GATE +
+    ' should move rankings when the mean is removed, and below ' + ANISO_GATE + ' it should not. This corpus measures ' +
+    esc(fx(mn, 4)) + ', which is <strong>' + (mn >= ANISO_GATE ? 'at or above' : 'below') + '</strong> that line, so the expected result is that removing the mean <strong>' +
+    (mn >= ANISO_GATE ? 'moves' : 'does not move') + '</strong> rankings. A result that matches is a measurement of this corpus, not a broken panel.</p>';
+  h += '<div class="btns"><button id="rerankBtn" type="button">Run the mean-removal rerank</button></div><div id="rerankOut"></div></div>';
+
+  /* null check */
+  h += '<div class="panel good"><h3>The null, checked rather than asserted</h3>';
+  h += '<p>Predicted standard deviation at d=' + a.d + ' is 1 over the square root of ' + a.d + ', which is <b>' +
+    esc(fx(a.mc.predicted, 5)) + '</b>. A seeded Monte Carlo run in this browser on this calibration, ' + esc(grp(a.mc.n)) +
+    ' independent pairs of uniform random unit vectors at the same dimension, measured <b>' + esc(fx(a.mc.sd, 5)) +
+    '</b> with an approximate standard error of ' + esc(a.mc.se.toExponential(2)) + ' and a sample mean of ' +
+    esc(a.mc.mean.toExponential(2)) + '. The seed is fixed, so this number is the same for every reader.</p>';
+  h += '<div class="tw"><table class="data narrow"><thead><tr><th>Tail check</th><th class="num">Computed</th><th class="num">Closed form</th><th class="num">Absolute error</th></tr></thead><tbody>';
+  for (var ci = 0; ci < a.checks.length; ci++) {
+    var c = a.checks[ci];
+    h += '<tr><td>d=' + c.d + ', t=' + esc(fx(c.t, 1)) + ', ' + esc(c.form) + '</td><td class="num">' +
+      esc(c.got.toPrecision(12)) + '</td><td class="num">' + esc(c.want.toPrecision(12)) + '</td><td class="num">' +
+      esc(Math.abs(c.got - c.want).toExponential(2)) + '</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+
+  /* query panel */
+  if (a.spearman) {
+    var sp = a.spearman;
+    h += '<div class="panel"><h3>Your query vector</h3>';
+    h += '<p>' + esc(grp(sp.overThreshold)) + ' of ' + esc(grp(sp.n)) + ' vectors clear ' + esc(fx(t.t, 2)) +
+      ' against this query. The best match is ' + esc(fx(sp.top, 4)) + '.</p>';
+    h += '<p class="fine">Spearman rank correlation between the row order you pasted and cosine to the query: ' +
+      esc(fx(sp.rho, 4)) + '. Near zero means the rows are in arbitrary order, which is the normal case for a corpus dump. Close to -1 means they are already ordered best match first. Close to +1 is the inverted case and blocks calibration.</p></div>';
+  }
+
+  outEl.innerHTML = h;
+  var rb = $('rerankBtn');
+  if (rb) rb.addEventListener('click', function () { runRerank(); });
+}
+
+/* ------------------------------------------------------------------ *
+ * flatten + gate + run
+ * ------------------------------------------------------------------ */
+function flatten(vecs) {
+  var n = vecs.length, d = vecs[0].length;
+  var buf = new Float64Array(n * d);
+  for (var i = 0; i < n; i++) buf.set(vecs[i], i * d);
+  return buf;
+}
+function preflight(vecs, labels) {
+  var blocks = [], i;
+  var dims = new Map();
+  for (i = 0; i < vecs.length; i++) {
+    var d = vecs[i].length;
+    dims.set(d, (dims.get(d) || 0) + 1);
+  }
+  var dimList = [];
+  dims.forEach(function (cnt, d) { dimList.push({ d: d, n: cnt }); });
+  dimList.sort(function (a, b) { return b.n - a.n; });
+  if (dimList.length > 1) {
+    var parts = [];
+    for (i = 0; i < dimList.length && i < 8; i++) parts.push(esc(grp(dimList[i].n)) + ' at d=' + esc(grp(dimList[i].d)));
+    blocks.push('<strong>Dimension split.</strong> ' + dimList.length + ' distinct vector lengths in one input: ' +
+      parts.join(', ') + (dimList.length > 8 ? ', and more' : '') +
+      '. These cannot be pooled into one distribution. Finish the migration or split the input.');
+    return { blocks: blocks, fatal: true, dimList: dimList };
+  }
+  return { blocks: blocks, fatal: false, dimList: dimList };
+}
+function normNaive(v) {
+  var s = 0, i;
+  for (i = 0; i < v.length; i++) s += v[i] * v[i];
+  return Math.sqrt(s);
+}
+
+function calibrate(opts) {
+  opts = opts || {};
+  lastReport = null; lastJson = null;
+  var text = $('src').value;
+  var thrRaw = $('thr').value.trim();
+  var thr = Number(thrRaw);
+  if (thrRaw === '' || !Number.isFinite(thr) || thr < -1 || thr > 1) {
+    outEl.innerHTML = '<div class="msg err">Threshold must be a number between -1 and 1. Received "' + esc(thrRaw.slice(0, 40)) + '". Nothing was calibrated.</div>';
+    setStatus('');
+    return;
+  }
+  var p = parseVectors(text);
+  if (p.error) {
+    outEl.innerHTML = '<div class="msg err">' + esc(p.error) + '</div>';
+    setStatus('');
+    return;
+  }
+  var vecs = p.vecs, labels = p.labels;
+  if (vecs.length > MAX_VECTORS) {
+    outEl.innerHTML = '<div class="msg err">' + esc(grp(vecs.length)) + ' vectors received. The limit is ' + esc(grp(MAX_VECTORS)) + '. Nothing was calibrated.</div>';
+    setStatus('');
+    return;
+  }
+  var pre = preflight(vecs, labels);
+  if (pre.fatal) {
+    outEl.innerHTML = (p.fixtureNote ? '<div class="msg">Synthetic corpus generated in this page. ' + esc(p.fixtureNote) + '</div>' : '') +
+      gateHtml({ blocks: pre.blocks, offerNormalize: false });
+    setStatus('');
+    return;
+  }
+  var d = vecs[0].length;
+  if (d > MAX_DIM) {
+    outEl.innerHTML = '<div class="msg err">Dimension is ' + esc(grp(d)) + '. The limit is ' + esc(grp(MAX_DIM)) + '. Nothing was calibrated.</div>';
+    setStatus('');
+    return;
+  }
+  if (vecs.length * d > MAX_COMPONENTS) {
+    outEl.innerHTML = '<div class="msg err">' + esc(grp(vecs.length * d)) + ' total components (' + esc(grp(vecs.length)) +
+      ' vectors at d=' + esc(grp(d)) + '). The limit is ' + esc(grp(MAX_COMPONENTS)) + '. Nothing was calibrated.</div>';
+    setStatus('');
+    return;
+  }
+
+  /* norm and zero checks happen before the sample-size refusal, because they are cheap and they block */
+  var zeros = 0, off = 0, i;
+  for (i = 0; i < vecs.length; i++) {
+    var nm = normNaive(vecs[i]);
+    if (!(nm > 1e-12)) zeros++;
+    else if (Math.abs(nm - 1) > NORM_TOL) off++;
+  }
+  var blocks = [];
+  if (zeros > 0) {
+    blocks.push('<strong>Zero vectors.</strong> ' + esc(grp(zeros)) + ' of ' + esc(grp(vecs.length)) +
+      ' vectors have norm 0, which is what an empty chunk looks like after embedding. Cosine against a zero vector is zero divided by zero. Remove them at ingest.');
+  }
+  if (off > 0 && !opts.normalize) {
+    blocks.push('<strong>Norms outside tolerance.</strong> ' + esc(grp(off)) + ' of ' + esc(grp(vecs.length)) +
+      ' vectors deviate from unit norm by more than ' + NORM_TOL +
+      '. Cosine does not care. A dot-product index does: there the longest vector wins queries it does not match.');
+  }
+  if (blocks.length > 0) {
+    outEl.innerHTML = (p.fixtureNote ? '<div class="msg">Synthetic corpus generated in this page. ' + esc(p.fixtureNote) + '</div>' : '') +
+      gateHtml({ blocks: blocks, offerNormalize: (zeros === 0 && off > 0) });
+    var nb = $('normBtn');
+    if (nb) nb.addEventListener('click', function () { calibrate({ normalize: true }); });
+    setStatus('');
+    return;
+  }
+  if (vecs.length < MIN_VECTORS) {
+    var pairs = vecs.length * (vecs.length - 1) / 2;
+    outEl.innerHTML = '<div class="msg err"><strong>Refused: too few vectors.</strong> ' + esc(grp(vecs.length)) +
+      ' vectors give ' + esc(grp(pairs)) + ' distinct pairs. This page needs at least ' + esc(grp(MIN_VECTORS)) +
+      ' vectors, which is ' + esc(grp(MIN_VECTORS * (MIN_VECTORS - 1) / 2)) +
+      ' pairs. A cutoff printed from fewer than that is a number with a confidence interval wider than the answer, and printing it anyway is how a threshold gets defended in a design review.</div>';
+    setStatus('');
+    return;
+  }
+
+  var work = vecs;
+  if (opts.normalize) {
+    work = [];
+    for (i = 0; i < vecs.length; i++) {
+      var c = Float64Array.from(vecs[i]);
+      var nn = normNaive(c);
+      if (nn > 0) for (var k = 0; k < d; k++) c[k] /= nn;
+      work.push(c);
+    }
+  }
+  var buf = flatten(work);
+
+  var qp = null;
+  var qtext = $('qsrc').value;
+  if (p.query) {
+    qp = Float64Array.from(p.query);
+  } else if (qtext.trim() !== '') {
+    var qr = parseVectors(qtext);
+    if (qr.error || qr.vecs.length === 0) {
+      outEl.innerHTML = '<div class="msg err">The query vector could not be read. ' + esc(qr.error || 'No vector found.') + '</div>';
+      setStatus('');
+      return;
+    }
+    if (qr.vecs.length > 1) {
+      outEl.innerHTML = '<div class="msg err">The query box holds ' + esc(grp(qr.vecs.length)) + ' vectors. It takes exactly one.</div>';
+      setStatus('');
+      return;
+    }
+    if (qr.vecs[0].length !== d) {
+      outEl.innerHTML = '<div class="msg err">The query vector is d=' + esc(grp(qr.vecs[0].length)) +
+        ' and the corpus is d=' + esc(grp(d)) + '. Nothing was calibrated.</div>';
+      setStatus('');
+      return;
+    }
+    qp = Float64Array.from(qr.vecs[0]);
+  }
+
+  lastState = { buf: buf, n: work.length, d: d, labels: labels, normalized: !!opts.normalize, fixtureNote: p.fixtureNote };
+  setStatus('Scoring ' + grp(work.length) + ' vectors at d=' + grp(d) + ' ...');
+  outEl.innerHTML = '<div class="msg">Working.</div>';
+
+  var job = {
+    op: 'analyze', buf: buf, n: work.length, d: d, threshold: thr,
+    normTol: NORM_TOL, dupCos: DUP_COS, tailMin: TAIL_MIN_SAMPLES, pcIters: 60
+  };
+  if (qp) job.qbuf = qp;
+
+  runJob(job, function (res, err) {
+    if (err || !res) {
+      outEl.innerHTML = '<div class="msg err">The calculation failed: ' + esc(err || 'unknown error') + '. Nothing was calibrated.</div>';
+      setStatus('');
+      return;
+    }
+    if (res.spearman && Number.isFinite(res.spearman.rho) &&
+        res.spearman.rho >= SPEARMAN_GATE && res.n >= SPEARMAN_MIN_N) {
+      outEl.innerHTML = (p.fixtureNote ? '<div class="msg">Synthetic corpus generated in this page. ' + esc(p.fixtureNote) + '</div>' : '') +
+        gateHtml({
+          blocks: ['<strong>A ranked list sorted as if a distance were a similarity.</strong> Spearman rank correlation between the row order you pasted and cosine to your query vector is ' +
+            esc(fx(res.spearman.rho, 4)) + ' across ' + esc(grp(res.n)) +
+            ' rows. Cosine climbs as the list goes down, so the first row is the worst match and the last row is the best. That is what a distance sorted descending looks like when it is read as a similarity, and it inverts every top-k in the system. Sort ascending by distance, or subtract the distance from 1 and sort descending.'],
+          offerNormalize: false
+        });
+      setStatus('');
+      return;
+    }
+    render(res, labels, { normalized: !!opts.normalize, fixtureNote: p.fixtureNote });
+    buildExports(res, labels, { normalized: !!opts.normalize, fixtureNote: p.fixtureNote });
+    setStatus(grp(res.n) + ' vectors at d=' + grp(res.d) + ', ' + grp(res.pairs.used) + ' pairs scored.' +
+      (p.ignoredAfterDirective ? ' The example directive replaced the rest of the box.' : ''));
+  });
+}
+
+function runRerank() {
+  if (!lastState) return;
+  var ro = $('rerankOut');
+  if (!ro) return;
+  ro.innerHTML = '<p class="fine">Running.</p>';
+  runJob({ op: 'rerank', buf: lastState.buf, n: lastState.n, d: lastState.d, queries: RERANK_QUERIES, topK: RERANK_K },
+    function (r, err) {
+      if (err || !r) {
+        ro.innerHTML = '<div class="msg err">The rerank failed: ' + esc(err || 'unknown error') + '.</div>';
+        return;
+      }
+      var moved = Number.isFinite(r.meanTau) && r.meanTau < TAU_GATE;
+      var expected = r.muNorm >= ANISO_GATE;
+      var matches = (moved === expected);
+      var h = '<div class="tw"><table class="data narrow"><thead><tr><th>Measure</th><th class="num">Value</th></tr></thead><tbody>';
+      h += '<tr><td>Held-out queries used</td><td class="num">' + esc(grp(r.queries)) + '</td></tr>';
+      h += '<tr><td>Mean Kendall tau, before against after</td><td class="num">' + esc(fx(r.meanTau, 4)) + '</td></tr>';
+      h += '<tr><td>Mean top-' + r.k + ' overlap</td><td class="num">' + esc(pctStr(r.meanOverlap, 1)) + '</td></tr>';
+      h += '<tr><td>Queries whose top-' + r.k + ' set changed at all</td><td class="num">' + esc(grp(r.changedTopK)) + ' of ' + esc(grp(r.queries)) + '</td></tr>';
+      h += '<tr><td>Largest position shift seen</td><td class="num">' + esc(grp(r.maxShift)) + '</td></tr>';
+      h += '</tbody></table></div>';
+      h += '<p><strong>Verdict: rankings ' + (moved ? 'moved' : 'did not move') + '.</strong> The rule was fixed before the run: moved means mean Kendall tau below ' +
+        TAU_GATE + '. Measured ' + esc(fx(r.meanTau, 4)) + '. Mean-vector norm is ' + esc(fx(r.muNorm, 4)) +
+        ', so the expectation was that rankings ' + (expected ? 'would' : 'would not') + ' move. ' +
+        (matches ? 'The measurement matches the expectation.' : 'The measurement contradicts the expectation, which is a finding about this corpus and worth looking at.') + '</p>';
+      h += '<p class="fine">Top-' + r.k + ' overlap and Kendall tau disagree on purpose. Near-ties at the bottom of a top-' + r.k +
+        ' list flip under any perturbation, so a corpus with almost no anisotropy still reports some changed top-' + r.k +
+        ' sets while its overall ordering is intact. The tau figure is the one the verdict is built on.</p>';
+      ro.innerHTML = h;
+      if (lastJson) {
+        var rj = { queries: r.queries, topKChanged: r.changedTopK, maxPositionShift: r.maxShift,
+          verdictMoved: moved, expectedToMove: expected, matchesExpectation: matches };
+        put(rj, 'meanKendallTau', r.meanTau);
+        put(rj, 'meanTopKOverlap', r.meanOverlap);
+        put(rj, 'meanVectorNorm', r.muNorm);
+        lastJson.rerank = rj;
+      }
+      if (lastReport !== null) {
+        lastReport += '\nRerank: mean Kendall tau ' + fx(r.meanTau, 4) + ' over ' + grp(r.queries) +
+          ' held-out queries, mean top-' + r.k + ' overlap ' + pctStr(r.meanOverlap, 1) +
+          '. Verdict: rankings ' + (moved ? 'moved' : 'did not move') + ', which ' +
+          (matches ? 'matches' : 'contradicts') + ' the expectation from a mean-vector norm of ' + fx(r.muNorm, 4) + '.\n';
+      }
+    });
+}
+
+/* only ever writes a finite number, so NaN, Infinity, undefined and null
+   cannot reach the clipboard through the JSON export */
+function put(obj, key, val) {
+  if (Number.isFinite(val)) obj[key] = val;
+  return obj;
+}
+
+function buildExports(a, labels, meta) {
+  var t = a.threshold;
+  var L = [];
+  L.push('Embedding Similarity Calibrator');
+  L.push('');
+  if (meta.fixtureNote) L.push('Input: synthetic corpus generated in the page. ' + meta.fixtureNote);
+  if (meta.normalized) L.push('Input: calibrated on L2-normalized copies of the pasted vectors.');
+  L.push('Vectors: ' + grp(a.n) + '   Dimension: ' + grp(a.d));
+  L.push('Pairs scored: ' + grp(a.pairs.used) + ' of ' + grp(a.pairs.total) + (a.pairs.exhaustive ? ' (all)' : ' (random sample)'));
+  L.push('');
+  L.push('Threshold ' + fx(t.t, 4));
+  L.push('  theoretical null sd at d=' + a.d + ': ' + fx(t.nullSd, 6) + '  -> ' + fx(t.nullSigma, 2) + ' sigma out');
+  L.push('  your unrelated pairs: mean ' + fx(a.pairs.mean, 6) + ' sd ' + fx(a.pairs.sd, 6) + '  -> ' + fx(t.empSigma, 2) + ' sigma out');
+  L.push('  sampled pairs at or above the threshold: ' + grp(t.over) + ' (' + pctStr(t.overFrac, 3) + ')');
+  L.push('  exact null tail probability: ' + logTailStr(t.logNullTail));
+  L.push('');
+  L.push('Cutoffs (fraction of unrelated pairs clearing them)');
+  for (var i = 0; i < a.quants.length; i++) {
+    var q = a.quants[i];
+    L.push('  ' + pctStr(1 - q.p, (1 - q.p) < 0.01 ? 2 : 0) + ': yours ' +
+      (q.enough ? fx(q.emp, 6) : ('refused, needs ' + grp(q.need) + ' pairs, scored ' + grp(a.pairs.used))) +
+      '   null ' + fx(q.nul, 6));
+  }
+  L.push('');
+  L.push('Anisotropy');
+  L.push('  mean-vector norm: ' + fx(a.aniso.muNorm, 6) + ' (primary)');
+  L.push('  top principal direction share of variance: ' + (a.aniso.pc ? pctStr(a.aniso.pc.share, 2) : 'n/a'));
+  L.push('  expectation at the ' + ANISO_GATE + ' line: removing the mean ' +
+    (a.aniso.muNorm >= ANISO_GATE ? 'should move' : 'should not move') + ' rankings');
+  L.push('');
+  L.push('Hygiene');
+  L.push('  zero vectors: ' + grp(a.norms.zeroCount));
+  L.push('  norms outside ' + a.norms.tol + ': ' + grp(a.norms.offCount) + ' (largest deviation ' + a.norms.maxDev.toExponential(2) + ')');
+  L.push('  bit-identical duplicates: ' + grp(a.dupes.bitCount));
+  L.push('  cosine at or above ' + a.dupes.nearCos + ' and not bit-identical: ' + grp(a.dupes.nearCount));
+  L.push('');
+  L.push('Null check, seeded Monte Carlo at d=' + a.d);
+  L.push('  predicted sd ' + fx(a.mc.predicted, 6) + '   measured sd ' + fx(a.mc.sd, 6) +
+    ' over ' + grp(a.mc.n) + ' pairs (approx SE ' + a.mc.se.toExponential(2) + ')');
+  L.push('');
+  L.push('Assumption: a randomly drawn pair of these vectors is unrelated. False in a topically narrow index,');
+  L.push('where this distribution shifts right and every cutoff above comes out too high.');
+  lastReport = L.join('\n');
+
+  var qout = [];
+  for (var j = 0; j < a.quants.length; j++) {
+    var row = { unrelatedPairsClearing: 1 - a.quants[j].p, refused: !a.quants[j].enough };
+    if (a.quants[j].enough) put(row, 'cutoffFromYourVectors', a.quants[j].emp);
+    put(row, 'cutoffUnderNull', a.quants[j].nul);
+    qout.push(row);
+  }
+  var up = {}, th = {}, an = {}, hy = {}, nc = {};
+  put(up, 'mean', a.pairs.mean); put(up, 'sd', a.pairs.sd);
+  put(up, 'min', a.pairs.min); put(up, 'max', a.pairs.max);
+  put(th, 'value', t.t); put(th, 'nullSd', t.nullSd);
+  put(th, 'sigmaAboveNull', t.nullSigma); put(th, 'sigmaAboveYourPairs', t.empSigma);
+  put(th, 'log10NullTail', Number.isFinite(t.logNullTail) ? t.logNullTail / Math.LN10 : NaN);
+  th.sampledPairsAtOrAbove = t.over;
+  put(th, 'sampledFractionAtOrAbove', t.overFrac);
+  put(an, 'meanVectorNorm', a.aniso.muNorm);
+  if (a.aniso.pc) put(an, 'topPrincipalDirectionShareLowerBound', a.aniso.pc.share);
+  an.gate = ANISO_GATE;
+  an.expectationMovesRankings = a.aniso.muNorm >= ANISO_GATE;
+  hy.zeroVectors = a.norms.zeroCount;
+  hy.normsOutsideTolerance = a.norms.offCount;
+  hy.normTolerance = a.norms.tol;
+  put(hy, 'largestNormDeviation', a.norms.maxDev);
+  hy.bitIdenticalDuplicates = a.dupes.bitCount;
+  hy.nearDuplicatesNotBitIdentical = a.dupes.nearCount;
+  hy.nearDuplicateCosine = a.dupes.nearCos;
+  put(nc, 'predictedSd', a.mc.predicted); put(nc, 'measuredSd', a.mc.sd);
+  nc.pairs = a.mc.n;
+  put(nc, 'approxStandardError', a.mc.se);
+  lastJson = {
+    tool: 'embedding-similarity-calibrator',
+    vectors: a.n,
+    dimension: a.d,
+    normalizedCopies: !!meta.normalized,
+    pairs: { scored: a.pairs.used, total: a.pairs.total, exhaustive: a.pairs.exhaustive },
+    unrelatedPairs: up,
+    threshold: th,
+    cutoffs: qout,
+    anisotropy: an,
+    hygiene: hy,
+    nullCheck: nc,
+    assumption: 'A randomly drawn pair of these vectors is unrelated. False in a topically narrow index.'
+  };
+  if (meta.fixtureNote) lastJson.synthetic = meta.fixtureNote;
+  if (a.spearman) {
+    var qq = {};
+    put(qq, 'spearmanRowOrderAgainstCosine', a.spearman.rho);
+    qq.vectorsClearingThreshold = a.spearman.overThreshold;
+    put(qq, 'bestMatch', a.spearman.top);
+    lastJson.query = qq;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * hero
+ * ------------------------------------------------------------------ */
+function renderHero() {
+  var f = FIXTURES['anisotropic-1536']();
+  var job = {
+    op: 'analyze', buf: f.buf, n: f.n, d: f.d, threshold: 0.8,
+    normTol: NORM_TOL, dupCos: DUP_COS, tailMin: TAIL_MIN_SAMPLES, pcIters: 12
+  };
+  var a;
+  try { a = KERNEL(job); } catch (e) {
+    heroEl.innerHTML = '<p class="fine">The headline example could not be computed in this browser: ' + esc(String(e && e.message || e)) + '</p>';
+    return;
+  }
+  var t = a.threshold;
+  var h = '<p class="verdict">Your threshold is <b>0.80</b>. At d=1536 the random-vector null has standard deviation <b>' +
+    esc(fx(t.nullSd, 4)) + '</b>, so 0.80 sits <b>' + esc(fx(t.nullSigma, 1)) +
+    ' sigma</b> out. Your own unrelated pairs center at <b>' + esc(fx(a.pairs.mean, 2)) + '</b> with standard deviation <b>' +
+    esc(fx(a.pairs.sd, 2)) + '</b>, so the same 0.80 sits <b>' + esc(fx(t.empSigma, 1)) + ' sigma</b> out.</p>';
+  h += '<div class="stats">' +
+    '<div class="stat key"><div class="n">' + esc(fx(t.nullSigma, 1)) + ' sigma</div><div class="l">above the theoretical null</div></div>' +
+    '<div class="stat hot"><div class="n">' + esc(fx(t.empSigma, 1)) + ' sigma</div><div class="l">above this corpus</div></div>' +
+    '<div class="stat"><div class="n">' + esc(fx(a.quants[4].emp, 3)) + '</div><div class="l">cutoff where 1% of unrelated pairs clear</div></div>' +
+    '<div class="stat"><div class="n">' + esc(fx(a.aniso.muNorm, 3)) + '</div><div class="l">mean-vector norm</div></div>' +
+    '</div>';
+  h += '<p>The theoretical null is not your baseline. It says a 0.8 cutoff is unreachable, ' + esc(logTailStr(t.logNullTail)) +
+    ' unreachable. Your embedder says the same cutoff is ' + esc(fx(t.empSigma, 1)) +
+    ' standard deviations past where unrelated text already sits, and that unrelated text starts at ' +
+    esc(fx(a.pairs.mean, 2)) + ' rather than at 0. One of those two numbers is about your index. Paste your vectors below and the panel is recomputed on them.</p>';
+  h += '<p class="fine">Computed in this browser on load from ' + esc(grp(a.n)) + ' synthetic vectors at d=1536, generated here from a fixed seed with a stated shared-direction weight, over all ' +
+    esc(grp(a.pairs.total)) + ' pairs. Synthetic, not real model output: the mechanism is the claim, and your own vectors are the measurement. Press the first example button to load this corpus into the tool.</p>';
+  heroEl.innerHTML = h;
+}
+
+/* ------------------------------------------------------------------ *
+ * wiring
+ * ------------------------------------------------------------------ */
+function copyText(s, label) {
+  if (typeof s !== 'string' || s === '') {
+    setStatus('Nothing to copy yet. Press Calibrate first.');
+    return;
+  }
+  var done = function () { setStatus(label + ' copied to the clipboard.'); };
+  var fail = function () { setStatus('The browser refused clipboard access. Select the report and copy it by hand.'); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(s).then(done, fail);
+      return;
+    }
+  } catch (e) {}
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = s;
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) done(); else fail();
+  } catch (e2) { fail(); }
+}
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  $('themeBtn').textContent = (t === 'dark') ? 'Light theme' : 'Dark theme';
+  try { localStorage.setItem('esc-theme', t); } catch (e) {}
+}
+
+function boot() {
+  var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  $('themeBtn').textContent = (cur === 'dark') ? 'Light theme' : 'Dark theme';
+  $('themeBtn').addEventListener('click', function () {
+    var now = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(now === 'dark' ? 'light' : 'dark');
+  });
+
+  $('runBtn').addEventListener('click', function () { calibrate({}); });
+  $('ex1Btn').addEventListener('click', function () { loadExample('anisotropic-1536', '0.8'); });
+  $('ex2Btn').addEventListener('click', function () { loadExample('low-anisotropy-768', '0.8'); });
+  $('ex3Btn').addEventListener('click', function () { loadExample('broken-index', '0.8'); });
+  $('ex4Btn').addEventListener('click', function () { loadExample('distance-sorted', '0.5'); });
+  $('clearBtn').addEventListener('click', function () {
+    $('src').value = ''; $('qsrc').value = ''; outEl.innerHTML = '';
+    lastReport = null; lastJson = null; lastState = null;
+    setStatus('Cleared.');
+  });
+  $('copyTxtBtn').addEventListener('click', function () { copyText(lastReport, 'Report'); });
+  $('copyJsonBtn').addEventListener('click', function () {
+    if (!lastJson) { setStatus('Nothing to copy yet. Press Calibrate first.'); return; }
+    var s;
+    try { s = JSON.stringify(lastJson, null, 2); } catch (e) { s = ''; }
+    copyText(s, 'JSON');
+  });
+
+  renderHero();
+}
+
+function loadExample(name, thr) {
+  $('src').value = '#example ' + name;
+  $('qsrc').value = '';
+  $('thr').value = thr;
+  calibrate({});
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+})();
+</script>
+</body>
+</html>
